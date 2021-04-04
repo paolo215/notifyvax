@@ -6,6 +6,8 @@ import ssl
 import sys
 import email
 import bs4
+import datetime
+import json
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -48,8 +50,18 @@ class NotifyVax:
         if found:
             self.send_email(title, "\r\n".join(messages))
 
+    def check_costco(self):
+        for s in self.sites["costco"]:
+            self.driver.get(s)
+            self.driver.implicitly_wait(1)
+            h1 = self.driver.find_element_by_css_selector("h1")
+            if h1.text != "Account Error":
+                return True, s
+        return False, None
+
     def check_albertsons(self):
-        self.driver.get(self.sites["albertsons"])
+        site = self.sites["albertsons"]
+        self.driver.get(site)
         self.driver.implicitly_wait(1)
 
         zipcode = self.driver.find_element_by_id("covid_vaccine_search_input") 
@@ -71,19 +83,67 @@ class NotifyVax:
         for div in content:
             second = div.find_elements_by_css_selector("div")[1]
             if second.text.upper() != "NO":
-                return True
+                return True, site 
 
-        return False
+        return False, None
 
         #submit = self.driver.find_element_by_id("")
 
+    def check_walgreens(self):
+        config = self.sites["walgreens"]
+        self.driver.get(config["login"])
+        username = self.driver.find_element_by_name("username")
+        username.send_keys(config["email"])
+        password = self.driver.find_element_by_name("password")
+
+        password.send_keys(config["password"])
+
+        url = self.driver.current_url
+        submit = self.driver.find_element_by_id("submit_btn").click()
+
+        print(username.get_attribute("value"))
+        print(password.get_attribute("value"))
+        self.driver.implicitly_wait(5)
+        error = self.driver.find_element_by_id("error_msg")
+        print(error.get_attribute("innerHTML"))
+        #WebDriverWait(self.driver, TIMEOUT).until(EC.url_changes(url))
+
+
+
+        url = self.driver.current_url
+        print(url)
+        self.driver.get(config["timeslots"])
+
+
+        cookies = self.driver.get_cookies()
+        s = requests.Session()
+        for cookie in cookies:
+            s.cookies.set(cookie["name"], cookie["value"])
+
+        """
+
+        args = {}
+        args["appointmentAvailability"] = { "startDateTime": datetime.datetime.now().strftime("%Y-%m-%d")}
+        args["position"] = { "latitude": self.config["latitude"], "longitude": self.config["longitude"] }
+        args["radius"] = self.config["radius"]
+        args["serviceId"] = 99
+        args["size"] = self.config["size"]
+        args["state"] = self.config["state"]
+        args["vaccine"] = { "productId": "" }
+       
+        print(args) 
+        r = s.post(config["timeslots"], data=args)
+        print(r.content)
+        """
+
     def check_ohsu(self):
-        self.driver.get(self.sites["ohsu"])
+        site = self.sites["ohsu"]
+        self.driver.get(site)
         div =  self.driver.find_element_by_id("EndOfSurvey")
         #print(div.get_attribute("innerHTML"))
         if div:
-            return False
-        return True
+            return False, None
+        return True, site
 
 
     def send_email(self, title, msg):
@@ -111,9 +171,8 @@ def main(argv):
     try:
         #print(n.check_ohsu())
         #print(n.check_albertsons())
-    except Exception as e:
-        print("Exception error")
-        print(e)
+        #print(n.check_costco())
+        print(n.check_walgreens())
     finally:
         n.close()
 
