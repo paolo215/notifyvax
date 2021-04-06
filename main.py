@@ -9,6 +9,7 @@ import bs4
 import datetime
 import json
 import time
+import os
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -42,13 +43,18 @@ class NotifyVax:
         #options.add_argument("enable-automation")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        #options.add_argument("--headless")
         options.add_argument("--disable-infobars")
         options.add_argument("--disable-browser-side-navigation")
         options.add_argument("--disable-gpu")
         options.add_argument("disable-features=NetworkService")
         options.page_load_strategy = "normal"
-        self.driver = webdriver.Chrome("./driver/chromedriver.exe", chrome_options=options)
+        self.os_name = = os.name
+        if self.os_name == "nt":
+            self.driver = webdriver.Chrome("./driver/chromedriver.exe", chrome_options=options)
+        elif self.os_name == "posix":
+            options.add_argument("--headless")
+            self.driver = webdriver.Chrome("./driver/chromedriver.exe", chrome_options=options)
+        
 
     def scan(self):
 
@@ -83,10 +89,11 @@ class NotifyVax:
             print(e)
 
         try:
-            walgreens = self.check_walgreens()
-            if walgreens:
-                messages.append("Walgreens scheduling may be available: " + walgreens)
-                found = True
+            if self.os_name == "nt":
+                walgreens = self.check_walgreens()
+                if walgreens:
+                    messages.append("Walgreens scheduling may be available: " + walgreens)
+                    found = True
         except Exception as e:
             print("Walgreens scan error occurred")
             print(e)
