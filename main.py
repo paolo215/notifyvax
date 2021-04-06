@@ -304,8 +304,12 @@ class NotifyVax:
     def check_ohsu(self):
         site = self.sites["ohsu"]
         self.driver.get(site)
-        div =  self.driver.find_element_by_id("EndOfSurvey")
-        #print(div.get_attribute("innerHTML"))
+        div = None
+        try:
+            div =  self.driver.find_element_by_id("EndOfSurvey")
+            #print(div.get_attribute("innerHTML"))
+        except NoSuchElementException:
+            print("Cannot find EndOfSurvey... Questinnaires may be available")
         if div:
             return None
         return site
@@ -338,15 +342,15 @@ class NotifyVax:
         self.driver.quit()
 
 def main(argv):
-    n = NotifyVax()
     try:
+        n = NotifyVax()
         while True:
             n.scan()
             print("Scan done")
-            time.sleep(60*60*10)
+            time.sleep(60*10)
             
 
-    finally:
+    except Exception:
         n.close()
 
 
