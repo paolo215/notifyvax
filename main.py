@@ -48,7 +48,7 @@ class NotifyVax:
         options.add_argument("--disable-gpu")
         options.add_argument("disable-features=NetworkService")
         options.page_load_strategy = "normal"
-        self.os_name = = os.name
+        self.os_name = os.name
         if self.os_name == "nt":
             self.driver = webdriver.Chrome("./driver/chromedriver.exe", chrome_options=options)
         elif self.os_name == "posix":
@@ -172,33 +172,40 @@ class NotifyVax:
 
         #submit = self.driver.find_element_by_id("")
 
+    def login_walgreens(self):
+        url = self.driver.current_url
+        config = self.sites["walgreens"]
+        if ".com/login" in url:
+            username = self.driver.find_element_by_name("username")
+            username.send_keys(config["email"])
+            password = self.driver.find_element_by_name("password")
+
+            password.send_keys(config["password"])
+
+            url = self.driver.current_url
+            self.driver.find_element_by_id("submit_btn").click()
+            self.driver.implicitly_wait(5)
+            try:
+                error = self.driver.find_element_by_id("error_msg")
+                print(error.get_attribute("innerHTML"))
+            except NoSuchElementException:
+                print("No error_msg element found")
+
+            url = self.driver.current_url
+            if "verify_identity" in url:
+                radio_email = self.driver.find_element_by_id("radio-security")
+                radio_email.click()
+                self.driver.find_element_by_id("optionContinue").click()
+                self.driver.implicitly_wait(2)
+                answer = self.driver.find_element_by_name("SecurityAnswer")
+                answer.send_keys(config["securityAnswer"])
+                self.driver.find_element_by_id("validate_security_answer").click()     
+
     def check_walgreens(self):
         config = self.sites["walgreens"]
         self.driver.get(config["login"])
-        username = self.driver.find_element_by_name("username")
-        username.send_keys(config["email"])
-        password = self.driver.find_element_by_name("password")
-
-        password.send_keys(config["password"])
-
-        url = self.driver.current_url
-        self.driver.find_element_by_id("submit_btn").click()
-        self.driver.implicitly_wait(5)
-        try:
-            error = self.driver.find_element_by_id("error_msg")
-            print(error.get_attribute("innerHTML"))
-        except NoSuchElementException:
-            print("No error_msg element found")
-
-        url = self.driver.current_url
-        if "verify_identity" in url:
-            radio_email = self.driver.find_element_by_id("radio-security")
-            radio_email.click()
-            self.driver.find_element_by_id("optionContinue").click()
-            self.driver.implicitly_wait(2)
-            answer = self.driver.find_element_by_name("SecurityAnswer")
-            answer.send_keys(config["securityAnswer"])
-            self.driver.find_element_by_id("validate_security_answer").click()
+        self.login_walgreens()
+        
 
         self.driver.implicitly_wait(5)
         url = self.driver.current_url
@@ -224,7 +231,7 @@ class NotifyVax:
             #available = self.driver.find_element_by_css_selector(".alert__green")
             #if available:
             #    return True
-
+        self.driver.get(config["nextAvailable"])
         url = self.driver.current_url
         """
         if "/appointment/next-available" in url:
@@ -261,9 +268,9 @@ class NotifyVax:
         r = s.post(config["timeslots"], headers=header, data=args)
         response = r.json()
         print(response)
-        if "error" in response:
+        if "error" in response or "errors" in response:
             return None
-        return site
+        return config["nextAvailable"]
 
     def check_cvs(self):
         config = self.sites["cvs"]
@@ -353,11 +360,12 @@ def main(argv):
         n = NotifyVax()
         while True:
             n.scan()
+            #n.check_walgreens()
             print("Scan done")
             time.sleep(60*10)
             
 
-    except Exception:
+    finally:
         n.close()
 
 
