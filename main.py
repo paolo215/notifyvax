@@ -8,6 +8,7 @@ import email
 import bs4
 import datetime
 import json
+import time
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -24,7 +25,7 @@ from selenium.common.exceptions import NoSuchElementException
 Walmart
 Bi-Mart
 Rite Aid
-CVS
+#CVS
 Fred Meyer
 """
 
@@ -51,15 +52,51 @@ class NotifyVax:
 
     def scan(self):
         ohsu = self.check_ohsu()
+
         title = "COVID Vaccine Scheduling"
         found = False
         messages = []
         if ohsu:
-            messages.append("OHSU vaccination scheduling may be available: " + self.sites["ohsu"])
+            messages.append("OHSU vaccination scheduling may be available: " + ohsu)
             found = True
 
+        albertsons = self.check_albertsons()
+
+        if albertsons:
+            messages.append("Albertsons scheduling may be available: " + albertsons)
+            found = True
+
+        costco = self.check_costco()
+
+        if costco:
+            messages.append("Costco scheduling may be available: " + costco)
+            found = True
+
+        walgreens = self.check_walgreens()
+
+        if walgreens:
+            messages.append("Walgreens scheduling may be available: " + walgreens)
+            found = True
+
+        
+        cvs = self.check_cvs()
+
+        if cvs:
+            messages.append("CVS scheduling may be available: " + cvs)
+            found = True
+            
+        riteaid = self.check_riteaid()
+
+        if riteaid:
+            messages.append("RiteAid scheduling may be available: " + riteaid)
+            found = True
+            
         if found:
+            print("Found available covid vaccination scheduling site")
             self.send_email(title, "\r\n".join(messages))
+        else:
+            print("No available covid vaccination scheduling found")
+            self.send_email(title, "No available covid vaccination scheduling found")
 
     def check_costco(self):
         for s in self.sites["costco"]:
@@ -71,13 +108,13 @@ class NotifyVax:
                 body_text = body.text
                 if "scheduling is not currently available" in body_text \
                    or "site is temporarily disabled" in body_text:
-                    return False, None
+                    return None
                 else:
-                    return True, s
+                    return s
             except NoSuchElementException:
                 print("Body not found")
             
-        return False, None
+        return None
 
     def check_albertsons(self):
         site = self.sites["albertsons"]
@@ -103,9 +140,9 @@ class NotifyVax:
         for div in content:
             second = div.find_elements_by_css_selector("div")[1]
             if second.text.upper() != "NO":
-                return True, site 
+                return site 
 
-        return False, None
+        return None
 
         #submit = self.driver.find_element_by_id("")
 
@@ -177,11 +214,8 @@ class NotifyVax:
         #self.driver.get(config["timeslots"])
 
 
-        cookies = self.driver.get_cookies()
-        s = requests.Session()
-        for cookie in cookies:
-            s.cookies.set(cookie["name"], cookie["value"])
-
+        s = self.get_cookies()
+        
         header = {}
         header["user-agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36"
         header["content-type"] = "application/json; charset=UTF-8"
@@ -202,9 +236,51 @@ class NotifyVax:
         response = r.json()
         print(response)
         if "error" in response:
-            return False, None
-        return True, config["timeslots"]
-    
+            return None
+        return site
+
+    def check_cvs(self):
+        config = self.sites["cvs"]
+        site = config["covidSite"]
+
+        self.driver.get(site)
+        s = self.get_cookies()
+
+        header = {}
+        header["user-agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36"
+        header["content-type"] = "application/json;charset=iso-8859-1"
+        header["accept"] = "application/json, text/plain, */*"
+        header["Referer"] = "https://www.cvs.com/immunizations/covid-19-vaccine"
+
+        r = s.get(config["covidInfo"], headers=header)
+        response = r.json()
+        state_data = response["responsePayloadData"]["data"][self.config["state"]]
+        for data in state_data:
+            if data["status"] != "Fully Booked":
+                return site
+        return None
+            
+    def check_riteaid(self):
+        config = self.sites["riteAid"]
+        header = {}
+        header["user-agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36"
+        header["content-type"] = "application/json;charset=iso-8859-1"
+        header["accept"] = "application/json, text/plain, */*"
+        header["Referer"] = "https://www.riteaid.com/pharmacy/apt-scheduler"
+
+        self.driver.get(config["covidSite"])
+        s = self.get_cookies()
+        
+        for site in config["sites"]:
+            r = s.get(site, headers=header)
+            response = r.json()
+            slots = response["Data"]["slots"]
+            print(site, slots)
+            for slot in slots:
+                if slot == True:
+                    return config["covidSite"]
+        return None
+        
 
     def check_ohsu(self):
         site = self.sites["ohsu"]
@@ -212,9 +288,15 @@ class NotifyVax:
         div =  self.driver.find_element_by_id("EndOfSurvey")
         #print(div.get_attribute("innerHTML"))
         if div:
-            return False, None
-        return True, site
+            return None
+        return site
 
+    def get_cookies(self):
+        cookies = self.driver.get_cookies()
+        s = requests.Session()
+        for cookie in cookies:
+            s.cookies.set(cookie["name"], cookie["value"])
+        return s
 
     def send_email(self, title, msg):
         server = smtplib.SMTP(self.config["smtp"], self.config["port"])
@@ -239,12 +321,13 @@ class NotifyVax:
 def main(argv):
     n = NotifyVax()
     try:
-        print(n.check_ohsu())
-        print(n.check_albertsons())
-        print(n.check_costco())
-        print(n.check_walgreens())
+        while True:
+            n.scan()
+            print("Scan done")
+            time.sleep(60*60*10)
+            
+
     finally:
-        input()
         n.close()
 
 
