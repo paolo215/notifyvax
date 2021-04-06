@@ -15,6 +15,18 @@ from email.message import EmailMessage
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
+
+"""
+#Safeway and Albertsons
+#Costco
+#Walgreens (or 1-800-WALGREENS) 
+Walmart
+Bi-Mart
+Rite Aid
+CVS
+Fred Meyer
+"""
 
 TIMEOUT = 30
 
@@ -26,16 +38,16 @@ class NotifyVax:
 
         options = webdriver.ChromeOptions()
         options.add_argument("start-maximized")
-        options.add_argument("enable-automation")
+        #options.add_argument("enable-automation")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--headless")
+        #options.add_argument("--headless")
         options.add_argument("--disable-infobars")
         options.add_argument("--disable-browser-side-navigation")
         options.add_argument("--disable-gpu")
         options.add_argument("disable-features=NetworkService")
         options.page_load_strategy = "normal"
-        self.driver = webdriver.Chrome("./driver/chromedriver", chrome_options=options)
+        self.driver = webdriver.Chrome("./driver/chromedriver.exe", chrome_options=options)
 
     def scan(self):
         ohsu = self.check_ohsu()
@@ -46,7 +58,6 @@ class NotifyVax:
             messages.append("OHSU vaccination scheduling may be available: " + self.sites["ohsu"])
             found = True
 
-
         if found:
             self.send_email(title, "\r\n".join(messages))
 
@@ -54,9 +65,18 @@ class NotifyVax:
         for s in self.sites["costco"]:
             self.driver.get(s)
             self.driver.implicitly_wait(1)
-            h1 = self.driver.find_element_by_css_selector("h1")
-            if h1.text != "Account Error":
-                return True, s
+
+            try:
+                body = self.driver.find_element_by_tag_name("body")
+                body_text = body.text
+                if "scheduling is not currently available" in body_text \
+                   or "site is temporarily disabled" in body_text:
+                    return False, None
+                else:
+                    return True, s
+            except NoSuchElementException:
+                print("Body not found")
+            
         return False, None
 
     def check_albertsons(self):
@@ -99,20 +119,62 @@ class NotifyVax:
         password.send_keys(config["password"])
 
         url = self.driver.current_url
-        submit = self.driver.find_element_by_id("submit_btn").click()
-
-        print(username.get_attribute("value"))
-        print(password.get_attribute("value"))
+        self.driver.find_element_by_id("submit_btn").click()
         self.driver.implicitly_wait(5)
-        error = self.driver.find_element_by_id("error_msg")
-        print(error.get_attribute("innerHTML"))
-        #WebDriverWait(self.driver, TIMEOUT).until(EC.url_changes(url))
-
-
+        try:
+            error = self.driver.find_element_by_id("error_msg")
+            print(error.get_attribute("innerHTML"))
+        except NoSuchElementException:
+            print("No error_msg element found")
 
         url = self.driver.current_url
-        print(url)
-        self.driver.get(config["timeslots"])
+        if "verify_identity" in url:
+            radio_email = self.driver.find_element_by_id("radio-security")
+            radio_email.click()
+            self.driver.find_element_by_id("optionContinue").click()
+            self.driver.implicitly_wait(2)
+            answer = self.driver.find_element_by_name("SecurityAnswer")
+            answer.send_keys(config["securityAnswer"])
+            self.driver.find_element_by_id("validate_security_answer").click()
+
+        self.driver.implicitly_wait(5)
+        url = self.driver.current_url
+        if "/appointment/patient-info" in url:
+            self.driver.find_element_by_id("continueBtn").click()
+
+        url = self.driver.current_url
+        if "/covid-19/location-screening" in url:
+            input_location = self.driver.find_element_by_id("inputLocation")
+            input_location.clear()
+            input_location.send_keys(self.config["zip"])
+            self.driver.implicitly_wait(2)
+            self.driver.find_element_by_css_selector("section .LocationSearch_container .btn").click()
+            self.driver.implicitly_wait(2)
+            error = None
+            try:
+                error = self.driver.find_element_by_css_selector(".alert__red")
+                #if error:
+                 #   return False
+            except NoSuchElementException:
+                print("No alert found")
+
+            #available = self.driver.find_element_by_css_selector(".alert__green")
+            #if available:
+            #    return True
+
+        url = self.driver.current_url
+        """
+        if "/appointment/next-available" in url:
+            input_location = self.driver.find_element_by_id("inputLocation")
+            input_location.clear()
+            input_location.send_keys(self.config["zip"])
+            self.driver.find_element_by_css_selector("#icon__search").click()
+        """ 
+
+        #self.driver.find_element_by_css_selector("#icon_search").click()                
+        #WebDriverWait(self.driver, TIMEOUT).until(EC.url_changes(url))
+        url = self.driver.current_url
+        #self.driver.get(config["timeslots"])
 
 
         cookies = self.driver.get_cookies()
@@ -120,21 +182,29 @@ class NotifyVax:
         for cookie in cookies:
             s.cookies.set(cookie["name"], cookie["value"])
 
-        """
-
+        header = {}
+        header["user-agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36"
+        header["content-type"] = "application/json; charset=UTF-8"
+        header["accept"] = "application/json, text/plain, */*"
         args = {}
         args["appointmentAvailability"] = { "startDateTime": datetime.datetime.now().strftime("%Y-%m-%d")}
         args["position"] = { "latitude": self.config["latitude"], "longitude": self.config["longitude"] }
         args["radius"] = self.config["radius"]
-        args["serviceId"] = 99
+        args["serviceId"] = "99"
         args["size"] = self.config["size"]
         args["state"] = self.config["state"]
         args["vaccine"] = { "productId": "" }
-       
+        args = json.dumps(args, separators=(",", ":"))
+        
+        
         print(args) 
-        r = s.post(config["timeslots"], data=args)
-        print(r.content)
-        """
+        r = s.post(config["timeslots"], headers=header, data=args)
+        response = r.json()
+        print(response)
+        if "error" in response:
+            return False, None
+        return True, config["timeslots"]
+    
 
     def check_ohsu(self):
         site = self.sites["ohsu"]
@@ -169,11 +239,12 @@ class NotifyVax:
 def main(argv):
     n = NotifyVax()
     try:
-        #print(n.check_ohsu())
-        #print(n.check_albertsons())
-        #print(n.check_costco())
+        print(n.check_ohsu())
+        print(n.check_albertsons())
+        print(n.check_costco())
         print(n.check_walgreens())
     finally:
+        input()
         n.close()
 
 
