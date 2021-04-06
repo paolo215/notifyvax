@@ -51,45 +51,64 @@ class NotifyVax:
         self.driver = webdriver.Chrome("./driver/chromedriver.exe", chrome_options=options)
 
     def scan(self):
-        ohsu = self.check_ohsu()
 
         title = "COVID Vaccine Scheduling"
         found = False
         messages = []
-        if ohsu:
-            messages.append("OHSU vaccination scheduling may be available: " + ohsu)
-            found = True
+        try:
+            ohsu = self.check_ohsu()
+            if ohsu:
+                messages.append("OHSU vaccination scheduling may be available: " + ohsu)
+                found = True
+        except Exception as e:
+            print("OHSU scan error occurred")
+            print(e)
 
-        albertsons = self.check_albertsons()
+        try:
+            albertsons = self.check_albertsons()
+            if albertsons:
+                messages.append("Albertsons scheduling may be available: " + albertsons)
+                found = True
+        except Exception as e:
+            print("Albertsons scan error occurred")
+            print(e)
 
-        if albertsons:
-            messages.append("Albertsons scheduling may be available: " + albertsons)
-            found = True
+        try:
+            costco = self.check_costco()
+            if costco:
+                messages.append("Costco scheduling may be available: " + costco)
+                found = True
+        except Exception as e:
+            print("Costco scan error occurred")
+            print(e)
 
-        costco = self.check_costco()
+        try:
+            walgreens = self.check_walgreens()
+            if walgreens:
+                messages.append("Walgreens scheduling may be available: " + walgreens)
+                found = True
+        except Exception as e:
+            print("Walgreens scan error occurred")
+            print(e)
 
-        if costco:
-            messages.append("Costco scheduling may be available: " + costco)
-            found = True
+        try:
+            cvs = self.check_cvs()
+            if cvs:
+                messages.append("CVS scheduling may be available: " + cvs)
+                found = True
+        except Exception as e:
+            print("CVS scan error occurred")
+            print(e)
 
-        walgreens = self.check_walgreens()
+        try:
+            riteaid = self.check_riteaid()
+            if riteaid:
+                messages.append("RiteAid scheduling may be available: " + riteaid)
+                found = True
+        except Exception as e:
+            print("RiteAid scan error occurred")
+            print(e)
 
-        if walgreens:
-            messages.append("Walgreens scheduling may be available: " + walgreens)
-            found = True
-
-        
-        cvs = self.check_cvs()
-
-        if cvs:
-            messages.append("CVS scheduling may be available: " + cvs)
-            found = True
-            
-        riteaid = self.check_riteaid()
-
-        if riteaid:
-            messages.append("RiteAid scheduling may be available: " + riteaid)
-            found = True
             
         if found:
             print("Found available covid vaccination scheduling site")
