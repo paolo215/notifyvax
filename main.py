@@ -25,7 +25,7 @@ from selenium.common.exceptions import NoSuchElementException
 #Walgreens (or 1-800-WALGREENS) 
 Walmart
 Bi-Mart
-Rite Aid
+#Rite Aid
 #CVS
 Fred Meyer
 """
@@ -53,7 +53,7 @@ class NotifyVax:
             self.driver = webdriver.Chrome("./driver/chromedriver.exe", chrome_options=options)
         elif self.os_name == "posix":
             options.add_argument("--headless")
-            self.driver = webdriver.Chrome("./driver/chromedriver.exe", chrome_options=options)
+            self.driver = webdriver.Chrome("./driver/chromedriver", chrome_options=options)
         
 
     def scan(self):
@@ -146,7 +146,7 @@ class NotifyVax:
     def check_albertsons(self):
         site = self.sites["albertsons"]
         self.driver.get(site)
-        self.driver.implicitly_wait(1)
+        self.driver.implicitly_wait(3)
 
         zipcode = self.driver.find_element_by_id("covid_vaccine_search_input") 
         #zipcode = WebDriverWait(self.driver, TIMEOUT).until(EC.presence_of_element_located((By.ID, "covid_vaccine_search_input")))
@@ -233,6 +233,7 @@ class NotifyVax:
             #if available:
             #    return True
         self.driver.get(config["nextAvailable"])
+        self.driver.implicitly_wait(3)
         url = self.driver.current_url
         """
         if "/appointment/next-available" in url:
@@ -279,6 +280,7 @@ class NotifyVax:
 
         self.driver.get(site)
         s = self.get_cookies()
+        self.driver.implicitly_wait(3)
 
         header = {}
         header["user-agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36"
@@ -304,6 +306,7 @@ class NotifyVax:
 
         self.driver.get(config["covidSite"])
         s = self.get_cookies()
+        self.driver.implicitly_wait(3)
         
         for site in config["sites"]:
             r = s.get(site, headers=header)
@@ -319,6 +322,7 @@ class NotifyVax:
     def check_ohsu(self):
         site = self.sites["ohsu"]
         self.driver.get(site)
+        self.driver.implicitly_wait(3) 
         div = None
         try:
             div =  self.driver.find_element_by_id("EndOfSurvey")
