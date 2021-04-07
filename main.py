@@ -119,6 +119,7 @@ class NotifyVax:
             
         if found:
             print("Found available covid vaccination scheduling site")
+            print(messages)
             self.send_email(title, "\r\n".join(messages))
         #else:
         #    print("No available covid vaccination scheduling found")
