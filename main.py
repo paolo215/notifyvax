@@ -136,8 +136,22 @@ class NotifyVax:
                 if "scheduling is not currently available" in body_text \
                    or "site is temporarily disabled" in body_text:
                     return None
-                else:
+                links = self.driver.find_elements_by_tag_name("a")
+                found = False
+                for link in links:
+                    href = link.get_attribute("href")
+                    if "book-appointment/select-a-location" in href:
+                        found = True
+                        link.click()
+                        break
+
+                if found:
+                    body = self.driver.find_element_by_tag_name("body")
+                    body_text = body.text
+                    if "no resources available" in body.text:
+                        return None
                     return s
+                    
             except NoSuchElementException:
                 print("Body not found")
             
